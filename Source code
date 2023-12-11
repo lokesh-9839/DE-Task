@@ -1,0 +1,197 @@
+Question 1.
+pip install pyyaml
+
+import requests
+import zipfile
+import os
+import yaml
+import sqlite3
+
+ Step 1: Download Data
+def download_data(url):
+    response = requests.get(url)
+    zip_file_path = "cricsheet_data.zip"
+
+    with open(zip_file_path, "wb") as zip_file:
+        zip_file.write(response.content)
+
+    with zipfile.ZipFile(zip_file_path, "r") as z:
+        z.extractall("downloaded_data")
+
+    os.remove(zip_file_path)
+
+ Step 2: Preprocessing (Modify this based on your data)
+def preprocess_data():
+    # Add your preprocessing logic here
+    pass
+
+ Step 3: SQLite Database Creation
+def create_database():
+    conn = sqlite3.connect("cricket_data.db")
+    cursor = conn.cursor()
+
+    # Create tables
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS matches (
+            match_id INTEGER PRIMARY KEY,
+            team1 TEXT,
+            team2 TEXT,
+            result TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS innings (
+            match_id INTEGER,
+            player TEXT,
+            runs INTEGER,
+            wickets INTEGER,
+            FOREIGN KEY (match_id) REFERENCES matches (match_id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS players (
+            player_id INTEGER PRIMARY KEY,
+            player_name TEXT
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+ Step 4: Data Loading
+def load_data():
+    conn = sqlite3.connect("cricket_data.db")
+    cursor = conn.cursor()
+
+     Load data into tables
+     Modify the following code based on your actual data structure
+    cursor.execute("INSERT INTO matches (team1, team2, result) VALUES (?, ?, ?)", ("TeamA", "TeamB", "ResultA"))
+    cursor.execute("INSERT INTO innings (match_id, player, runs, wickets) VALUES (?, ?, ?, ?)", (1, "Player1", 50, 2))
+
+    conn.commit()
+    conn.close()
+
+ Step 5: Universe of Players
+def extract_players():
+    conn = sqlite3.connect("cricket_data.db")
+    cursor = conn.cursor()
+
+    Extract unique players from innings table and store in players table
+    cursor.execute("""
+        INSERT INTO players (player_name)
+        SELECT DISTINCT player FROM innings
+    """)
+
+    conn.commit()
+    conn.close()
+
+Step 6: Command Line Execution
+if __name__ == "__main__":
+    cricsheet_url = "https://cricsheet.org/downloads/odis.zip"
+    download_data(cricsheet_url)
+    preprocess_data()
+    create_database()
+    load_data()
+    extract_players()
+
+    print("Batch data ingest process completed.")
+
+
+
+Question2.
+
+a. Win Records by Year and Gender (excluding ties, matches with no result, and DLS method):
+-- win_records.sql
+
+SELECT
+    strftime('%Y', m.date) AS year,
+    m.gender,
+    m.team1 AS team,
+    COUNT(*) AS total_matches,
+    SUM(CASE WHEN m.result = 'won' THEN 1 ELSE 0 END) AS total_wins,
+    ROUND(SUM(CASE WHEN m.result = 'won' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS win_percentage
+FROM
+    matches m
+WHERE
+    m.result IS NOT NULL
+    AND m.result NOT IN ('tie', 'no result', 'DLS')
+GROUP BY
+    year,
+    m.gender,
+    m.team1
+ORDER BY
+    year,
+    m.gender,
+    win_percentage DESC;
+
+b. Teams with the Highest Win Percentages in 2019:
+-- highest_win_percentages_2019.sql
+
+WITH TeamWinPercentages AS (
+    SELECT
+        m.gender,
+        m.team1 AS team,
+        COUNT(*) AS total_matches,
+        SUM(CASE WHEN m.result = 'won' THEN 1 ELSE 0 END) AS total_wins,
+        ROUND(SUM(CASE WHEN m.result = 'won' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS win_percentage
+    FROM
+        matches m
+    WHERE
+        m.result = 'won'
+        AND strftime('%Y', m.date) = '2019'
+    GROUP BY
+        m.gender,
+        m.team1
+)
+SELECT
+    gender,
+    team,
+    total_matches,
+    total_wins,
+    win_percentage
+FROM
+    TeamWinPercentages
+ORDER BY
+    gender,
+    win_percentage DESC
+LIMIT 1;
+
+c. Players with the Highest Strike Rates in 2019:
+-- highest_strike_rates_2019.sql
+
+WITH PlayerStrikeRates AS (
+    SELECT
+        i.player AS player_name,
+        ROUND(SUM(i.runs) * 100.0 / COUNT(DISTINCT i.match_id), 2) AS strike_rate
+    FROM
+        innings i
+        JOIN matches m ON i.match_id = m.match_id
+    WHERE
+        strftime('%Y', m.date) = '2019'
+    GROUP BY
+        i.player
+)
+SELECT
+    player_name,
+    strike_rate
+FROM
+    PlayerStrikeRates
+ORDER BY
+    strike_rate DESC
+LIMIT 1;
+
+
+Question 3.
+
+Here are some key changes that might be considered:
+
+1.Timestamp or Versioning:
+Introduce a timestamp or versioning mechanism in the data or API to identify the latest records or changes. This allows the system to fetch only the data that has been added or modified since the last batch process.
+
+2.Change Tracking:
+Implement a change tracking system to monitor additions or modifications in the dataset. This could involve maintaining a log of changes, such as inserting a timestamp in the database for each record to track when it was last updated.
+
+3.Incremental Data Loading Logic:
+Modify the data loading script to include logic for fetching and processing only the incremental data. This may involve comparing timestamps, version numbers, or using other indicators to identify records that have changed or are new.
